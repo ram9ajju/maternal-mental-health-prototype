@@ -1,89 +1,58 @@
 import streamlit as st
 import pandas as pd
-from openai import OpenAI
 
-# --- CONFIG ---
-st.set_page_config(page_title="Maternal Mental Health AI Prototype", layout="wide")
+# --- Load CSVs from GitHub ---
+# Replace these URLs with the raw GitHub URLs of your CSV files
+SURVEY_CSV_URL = "https://raw.githubusercontent.com/yourusername/yourrepo/main/maternal_streamlit_project/maternal_wellbeing_survey.csv"
+PLOS_CSV_URL = "https://raw.githubusercontent.com/yourusername/yourrepo/main/maternal_streamlit_project/plos_breastfeeding_mental_health.csv"
 
-# --- LOAD DATA ---
 @st.cache_data
-def load_data():
-    survey_df = pd.read_csv("data/maternal_wellbeing_survey.csv")
-    plos_df = pd.read_csv("data/plos_breastfeeding_mental_health.csv")
-    return survey_df, plos_df
+def load_csv(url):
+    df = pd.read_csv(url)
+    # Clean column names: strip spaces, replace special characters
+    df.columns = df.columns.str.strip().str.replace('√©', 'é', regex=False)
+    return df
 
-survey_df, plos_df = load_data()
+survey_df = load_csv(SURVEY_CSV_URL)
+plos_df = load_csv(PLOS_CSV_URL)
 
-# --- INTRO ---
-st.title("🤱 Maternal Mental Health AI Curator")
-st.write("""
-Welcome! This prototype combines breastfeeding & maternal wellbeing data to provide **personalized insights**.
-Please fill in the fields below to get curated suggestions.
+st.title("Maternal Mental Health Curator App")
+st.markdown("""
+This app uses survey and published dataset information to help mothers anticipate and manage stress during outings.
 """)
 
-# --- USER INPUT ---
-st.header("Your Information")
-age_group = st.selectbox("What is your age group?", survey_df["What is your age group?"].unique())
-region = st.selectbox("Which region of New Zealand do you live in?", survey_df["Which region of New Zealand do you live in?"].unique())
+# --- Mother Profile Input ---
+st.header("Mother Profile")
+
+age_group = st.selectbox("Select your age group:", survey_df["What is your age group?"].unique())
+region = st.selectbox("Select your region:", survey_df["Which region of New Zealand do you live in?"].unique())
 child_age = st.selectbox("How old is your youngest child?", survey_df["How old is your youngest child?"].unique())
 breastfeeding_status = st.selectbox("Are you currently breastfeeding?", survey_df["Are you currently breastfeeding?"].unique())
-visit_freq = st.selectbox("How often do you visit public places with your baby?", survey_df["How often do you visit public places (caf√©s, malls, parks, libraries, etc.) with your baby?"].unique())
-confidence = st.slider("How confident are you about finding suitable spaces?", 0, 10, 5)
-challenges = st.multiselect(
-    "Which challenges do you face most often when going out?",
-    survey_df["What challenges do you face most often when you go out?"].dropna().str.split(';').explode().unique()
-)
-emotions = st.multiselect(
-    "What emotions do you most often experience before/during outings?",
-    survey_df["What emotions do you most often experience before or during outings with your baby?"].dropna().str.split(';').explode().unique()
-)
-info_preferences = st.multiselect(
-    "What type of information would make your outings easier?",
-    survey_df["What type of information would make your outings easier or less stressful? (Select up to 3)"].dropna().str.split(';').explode().unique()
-)
+visit_freq = st.selectbox("How often do you visit public places with your baby?", 
+                         survey_df["How often do you visit public places (cafés, malls, parks, libraries, etc.) with your baby?"].unique())
+confidence = st.selectbox("How confident do you feel about finding suitable spaces for feeding/changing/resting your baby?",
+                          survey_df["How confident do you feel about finding suitable spaces for feeding, changing, or resting your baby?"].unique())
+challenges = st.multiselect("Which challenges do you face most often when you go out?", 
+                            survey_df["Which of the following challenges do you face most often when you go out?"].dropna().unique())
+emotions = st.multiselect("What emotions do you most often experience before or during outings with your baby?", 
+                          survey_df["What emotions do you most often experience before or during outings with your baby?"].dropna().unique())
+info_needed = st.multiselect("What type of information would make your outings easier or less stressful?",
+                             survey_df["What type of information would make your outings easier or less stressful? (Select up to 3)"].dropna().unique())
+use_app = st.radio("Would you be comfortable with an app using location data (anonymously) to recommend nearby mother-friendly places?",
+                   survey_df["Would you be comfortable with an app using location data (anonymously) to recommend nearby mother-friendly places?"].unique())
 
-if st.button("Get AI-Curated Suggestions"):
-    st.info("Generating insights...")
+# --- Placeholder AI Curation ---
+st.header("Curated Suggestions")
 
-    # --- SIMPLE RULE-BASED CURATION EXAMPLE ---
-    # Match survey data patterns and PLOS trends
-    matched_rows = plos_df[
-        (plos_df["Any Breastfeeding"].str.lower().str.contains("yes" if "Yes" in breastfeeding_status else "no"))
-    ]
-    avg_anxiety = matched_rows["Anxiety"].mean()
+if st.button("Get Curated Recommendations"):
+    st.markdown("**Based on your profile and the survey/plos dataset, here are some insights:**")
     
-    st.subheader("📊 Curated Insights")
-    st.write(f"Based on your profile, mothers with similar breastfeeding status show an average anxiety score of **{avg_anxiety:.2f}** in the PLOS dataset.")
-    
-    st.write("Based on your challenges and preferences, here are some tips:")
-    for pref in info_preferences:
-        st.write(f"- {pref}")
+    # Example logic: you can replace this with ML/AI predictions later
+    st.write(f"- Since you are in **{region}**, frequenting public places **{visit_freq}**, we suggest checking facilities that have breastfeeding-friendly zones and quiet areas.")
+    st.write(f"- Challenges like {', '.join(challenges)} may be mitigated by planning your route using crowdsourced parent ratings and live facility info.")
+    st.write(f"- Emotional pattern: {', '.join(emotions)} — consider reminders and checklists to reduce anxiety.")
+    st.write(f"- Additional info requested: {', '.join(info_needed)}")
 
-   # --- AI-based example (optional, OpenAI LLM) ---
-# Uncomment below and provide OPENAI_API_KEY as environment variable for GPT suggestions
-
-import os
-from openai import OpenAI
-
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-
-prompt = f"""
-Mother profile:
-Age group: {age_group}
-Region: {region}
-Child age: {child_age}
-Breastfeeding: {breastfeeding_status}
-Challenges: {', '.join(challenges) if challenges else 'None'}
-Emotions: {', '.join(emotions) if emotions else 'None'}
-Info preferences: {', '.join(info_preferences) if info_preferences else 'None'}
-
-Provide 3 actionable suggestions for her to reduce anxiety and make outings easier based on maternal mental health studies.
-"""
-
-response = client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.7
-)
-st.write(response.choices[0].message["content"])
+st.markdown("---")
+st.markdown("**Data sources:** Survey dataset & PLOS breastfeeding mental health dataset (Figshare)")
 
