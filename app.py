@@ -1,58 +1,70 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
-# --- Load CSVs from GitHub ---
-# Replace these URLs with the raw GitHub URLs of your CSV files
-SURVEY_CSV_URL = "https://raw.githubusercontent.com/yourusername/yourrepo/main/maternal_streamlit_project/maternal_wellbeing_survey.csv"
-PLOS_CSV_URL = "https://raw.githubusercontent.com/yourusername/yourrepo/main/maternal_streamlit_project/plos_breastfeeding_mental_health.csv"
+st.set_page_config(page_title="Maternal Wellbeing AI Curator", layout="wide")
 
+# ---- LOAD SURVEY DATA ----
 @st.cache_data
-def load_csv(url):
-    df = pd.read_csv(url)
-    # Clean column names: strip spaces, replace special characters
-    df.columns = df.columns.str.strip().str.replace('√©', 'é', regex=False)
+def load_data():
+    df = pd.read_csv("maternal_wellbeing_survey.csv")
+    df.columns = df.columns.str.strip().str.replace("√©", "é", regex=False)
     return df
 
-survey_df = load_csv(SURVEY_CSV_URL)
-plos_df = load_csv(PLOS_CSV_URL)
+survey_df = load_data()
 
-st.title("Maternal Mental Health Curator App")
-st.markdown("""
-This app uses survey and published dataset information to help mothers anticipate and manage stress during outings.
+st.title("🤱 Maternal Wellbeing Curator")
+st.write("""
+This prototype uses real survey data from mothers in New Zealand to suggest friendly places and stress-reduction ideas based on your experiences.
 """)
 
-# --- Mother Profile Input ---
-st.header("Mother Profile")
+# ---- USER INPUT ----
+st.header("Tell us about yourself")
 
-age_group = st.selectbox("Select your age group:", survey_df["What is your age group?"].unique())
-region = st.selectbox("Select your region:", survey_df["Which region of New Zealand do you live in?"].unique())
-child_age = st.selectbox("How old is your youngest child?", survey_df["How old is your youngest child?"].unique())
-breastfeeding_status = st.selectbox("Are you currently breastfeeding?", survey_df["Are you currently breastfeeding?"].unique())
-visit_freq = st.selectbox("How often do you visit public places with your baby?", 
-                         survey_df["How often do you visit public places (cafés, malls, parks, libraries, etc.) with your baby?"].unique())
-confidence = st.selectbox("How confident do you feel about finding suitable spaces for feeding/changing/resting your baby?",
-                          survey_df["How confident do you feel about finding suitable spaces for feeding, changing, or resting your baby?"].unique())
-challenges = st.multiselect("Which challenges do you face most often when you go out?", 
-                            survey_df["Which of the following challenges do you face most often when you go out?"].dropna().unique())
-emotions = st.multiselect("What emotions do you most often experience before or during outings with your baby?", 
-                          survey_df["What emotions do you most often experience before or during outings with your baby?"].dropna().unique())
-info_needed = st.multiselect("What type of information would make your outings easier or less stressful?",
-                             survey_df["What type of information would make your outings easier or less stressful? (Select up to 3)"].dropna().unique())
-use_app = st.radio("Would you be comfortable with an app using location data (anonymously) to recommend nearby mother-friendly places?",
-                   survey_df["Would you be comfortable with an app using location data (anonymously) to recommend nearby mother-friendly places?"].unique())
+age = st.selectbox("Your age group:", sorted(survey_df["What is your age group?"].dropna().unique()))
+region = st.selectbox("Region:", sorted(survey_df["Which region of New Zealand do you live in?"].dropna().unique()))
+child_age = st.selectbox("Youngest child's age:", sorted(survey_df["How old is your youngest child?"].dropna().unique()))
+breastfeeding = st.selectbox("Are you currently breastfeeding?", sorted(survey_df["Are you currently breastfeeding?"].dropna().unique()))
+visit_freq = st.selectbox("How often do you visit public places?", sorted(survey_df.filter(like="public places").dropna().squeeze().unique()))
+confidence = st.selectbox("Confidence in finding suitable spaces:", sorted(survey_df.filter(like="confident").dropna().squeeze().unique()))
+challenges = st.multiselect("Common challenges you face:", survey_df["Which of the following challenges do you face most often when you go out?"].dropna().unique())
+emotions = st.multiselect("Emotions you often feel during outings:", survey_df["What emotions do you most often experience before or during outings with your baby?"].dropna().unique())
+info_needed = st.multiselect("Information that would help you:", survey_df.filter(like="make your outings easier").dropna().squeeze().unique())
 
-# --- Placeholder AI Curation ---
-st.header("Curated Suggestions")
+# ---- SIMPLE CURATION ENGINE ----
+if st.button("✨ Get AI-Curated Suggestions"):
+    st.subheader("Personalised Insights")
 
-if st.button("Get Curated Recommendations"):
-    st.markdown("**Based on your profile and the survey/plos dataset, here are some insights:**")
-    
-    # Example logic: you can replace this with ML/AI predictions later
-    st.write(f"- Since you are in **{region}**, frequenting public places **{visit_freq}**, we suggest checking facilities that have breastfeeding-friendly zones and quiet areas.")
-    st.write(f"- Challenges like {', '.join(challenges)} may be mitigated by planning your route using crowdsourced parent ratings and live facility info.")
-    st.write(f"- Emotional pattern: {', '.join(emotions)} — consider reminders and checklists to reduce anxiety.")
-    st.write(f"- Additional info requested: {', '.join(info_needed)}")
+    # Find similar mothers
+    mask = (
+        (survey_df["What is your age group?"] == age) &
+        (survey_df["Which region of New Zealand do you live in?"] == region)
+    )
+    similar = survey_df[mask]
+
+    if len(similar) > 0:
+        common_challenges = (
+            similar["Which of the following challenges do you face most often when you go out?"]
+            .value_counts().head(3).index.tolist()
+        )
+        st.write(f"🧩 Mothers like you often report these top challenges: {', '.join(common_challenges)}")
+    else:
+        st.write("No exact matches, showing general insights instead.")
+
+    # AI-style heuristic curation
+    if "Difficulty finding clean baby rooms" in challenges:
+        st.info("Try malls like **Westfield Albany** or **Sylvia Park** — both have clean, rated parent rooms.")
+    if "Lack of breastfeeding-friendly spaces" in challenges:
+        st.info("Cafés such as **The Shelf Café (Auckland CBD)** and **Crave Café (Morningside)** are known to be friendly for breastfeeding.")
+    if "Inadequate seating/resting spots" in challenges:
+        st.info("Libraries and community centres often provide calm, air-conditioned rest areas.")
+
+    if len(emotions) > 0:
+        st.success("You’re not alone — many mothers experience similar emotions. A short walk, flexible plans, and supportive places help reduce anxiety.")
+
+    st.write("💡 Based on your info preferences, the app could recommend routes with:")
+    for i in info_needed:
+        st.write(f"• {i}")
 
 st.markdown("---")
-st.markdown("**Data sources:** Survey dataset & PLOS breastfeeding mental health dataset (Figshare)")
-
+st.caption("Prototype © 2025 – AUT MCIS Maternal Mental Health Research")
