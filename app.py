@@ -59,24 +59,31 @@ if st.button("Get AI-Curated Suggestions"):
     for pref in info_preferences:
         st.write(f"- {pref}")
 
-    # --- AI-based example (optional, OpenAI LLM) ---
-    """
-    # Uncomment below and provide OPENAI_API_KEY as environment variable for GPT suggestions
+   # --- AI-based example (optional, OpenAI LLM) ---
+# Uncomment below and provide OPENAI_API_KEY as environment variable for GPT suggestions
 
-    import os
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+import os
+from openai import OpenAI
 
-    prompt = f"""
-    Mother profile:
-    Age group: {age_group}, Region: {region}, Child age: {child_age}, Breastfeeding: {breastfeeding_status}, Challenges: {challenges}, Emotions: {emotions}, Info preferences: {info_preferences}
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-    Provide 3 actionable suggestions for her to reduce anxiety and make outings easier based on maternal mental health studies.
-    """
+prompt = f"""
+Mother profile:
+Age group: {age_group}
+Region: {region}
+Child age: {child_age}
+Breastfeeding: {breastfeeding_status}
+Challenges: {', '.join(challenges) if challenges else 'None'}
+Emotions: {', '.join(emotions) if emotions else 'None'}
+Info preferences: {', '.join(info_preferences) if info_preferences else 'None'}
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
-    )
-    st.write(response.choices[0].message["content"])
-    """
+Provide 3 actionable suggestions for her to reduce anxiety and make outings easier based on maternal mental health studies.
+"""
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": prompt}],
+    temperature=0.7
+)
+st.write(response.choices[0].message["content"])
+
